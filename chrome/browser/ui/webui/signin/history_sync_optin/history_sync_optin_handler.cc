@@ -1,0 +1,138 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include "chrome/browser/ui/webui/signin/history_sync_optin/history_sync_optin_handler.h"
+
+#include "base/functional/bind.h"
+#include "base/functional/callback_forward.h"
+#include "base/metrics/user_metrics.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/signin/identity_manager_factory.h"
+#include "chrome/browser/signin/signin_util.h"
+#include "chrome/browser/sync/sync_service_factory.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+#include "chrome/browser/ui/signin/signin_view_controller.h"
+#include "chrome/browser/ui/webui/signin/login_ui_service.h"
+#include "chrome/browser/ui/webui/signin/login_ui_service_factory.h"
+#include "chrome/browser/ui/webui/signin/signin_utils.h"
+#include "components/signin/public/base/signin_metrics.h"
+#include "components/signin/public/identity_manager/identity_manager.h"
+#include "components/sync/service/sync_service.h"
+#include "components/sync/service/sync_user_settings.h"
+
+namespace {
+history_sync_optin::mojom::AccountInfoPtr CreateAccountInfoDataMojo(
+    const AccountInfo& info) {
+  history_sync_optin::mojom::AccountInfoPtr account_info_mojo =
+      history_sync_optin::mojom::AccountInfo::New();
+  account_info_mojo->account_image_src =
+      GURL(signin::GetAccountPictureUrl(info));
+  return account_info_mojo;
+}
+}  // namespace
+
+HistorySyncOptinHandler::HistorySyncOptinHandler(
+    mojo::PendingReceiver<history_sync_optin::mojom::PageHandler> receiver,
+    mojo::PendingRemote<history_sync_optin::mojom::Page> page,
+    Browser* browser,
+    Profile* profile,
+    base::OnceClosure history_optin_completed_closure)
+    : receiver_(this, std::move(receiver)),
+      page_(std::move(page)),
+      browser_(browser ? browser->AsWeakPtr() : nullptr),
+      profile_(profile),
+      history_optin_completed_closure_(
+          std::move(history_optin_completed_closure)),
+      identity_manager_(IdentityManagerFactory::GetForProfile(profile_)) {
+  CHECK(profile_);
+  CHECK(identity_manager_);
+}
+
+HistorySyncOptinHandler::~HistorySyncOptinHandler() {
+  if (history_optin_completed_closure_) {
+    // Runs the callback in case the dialog is not dismissed via the buttons,
+    // but e.g. using an accelerator or close button.
+    std::move(history_optin_completed_closure_).Run();
+    base::RecordAction(base::UserMetricsAction("Signin_HistorySync_Aborted"));
+  }
+}
+
+void HistorySyncOptinHandler::Accept() {
+  AddHistorySyncConsent();
+  FinishAndCloseDialog();
+  base::RecordAction(base::UserMetricsAction("Signin_HistorySync_Completed"));
+}
+
+void HistorySyncOptinHandler::Reject() {
+  FinishAndCloseDialog();
+  base::RecordAction(base::UserMetricsAction("Signin_HistorySync_Declined"));
+}
+
+void HistorySyncOptinHandler::RequestAccountInfo() {
+  MaybeGetAccountInfo();
+}
+
+void HistorySyncOptinHandler::MaybeGetAccountInfo() {
+  AccountInfo primary_account_info = identity_manager_->FindExtendedAccountInfo(
+      identity_manager_->GetPrimaryAccountInfo(signin::ConsentLevel::kSignin));
+
+  if (!primary_account_info.IsEmpty()) {
+    DispatchAccountInfoUpdate(primary_account_info);
+  }
+
+  if (!identity_manager_observation_.IsObserving()) {
+    identity_manager_observation_.Observe(identity_manager_);
+  }
+}
+
+void HistorySyncOptinHandler::UpdateDialogHeight(uint32_t height) {
+  if (browser_) {
+    browser_->GetFeatures().signin_view_controller()->SetModalSigninHeight(
+        height);
+  }
+}
+
+void HistorySyncOptinHandler::FinishAndCloseDialog() {
+  if (browser_) {
+    browser_->GetFeatures().signin_view_controller()->CloseModalSignin();
+  }
+  CHECK(history_optin_completed_closure_);
+  std::move(history_optin_completed_closure_).Run();
+}
+
+void HistorySyncOptinHandler::AddHistorySyncConsent() {
+  CHECK(identity_manager_->HasPrimaryAccount(signin::ConsentLevel::kSignin));
+  // TODO(crbug.com/404806988): As we add the invocation points check if
+  // additional actions are needed to enable sync for history. The invocation
+  // below works for an already syncing user. It enables the syncing for history
+  // if it's not already turned on.
+  signin_util::EnableHistorySync(SyncServiceFactory::GetForProfile(profile_));
+}
+
+void HistorySyncOptinHandler::OnAvatarChanged(const AccountInfo& info) {
+  CHECK(info.IsValid());
+  page_->SendAccountInfo(CreateAccountInfoDataMojo(info));
+}
+
+void HistorySyncOptinHandler::DispatchAccountInfoUpdate(
+    const AccountInfo& info) {
+  if (info.IsEmpty()) {
+    // No account is signed in, so there is nothing to be displayed in the sync
+    // confirmation dialog.
+    return;
+  }
+  if (info.account_id !=
+      identity_manager_->GetPrimaryAccountId(signin::ConsentLevel::kSignin)) {
+    return;
+  }
+  if (info.IsValid()) {
+    OnAvatarChanged(info);
+  }
+}
+
+void HistorySyncOptinHandler::OnExtendedAccountInfoUpdated(
+    const AccountInfo& info) {
+  DispatchAccountInfoUpdate(info);
+}

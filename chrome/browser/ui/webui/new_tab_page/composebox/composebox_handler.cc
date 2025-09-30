@@ -1,0 +1,152 @@
+// Copyright 2025 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include "chrome/browser/ui/webui/new_tab_page/composebox/composebox_handler.h"
+
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "base/notreached.h"
+#include "base/time/time.h"
+#include "chrome/browser/ui/omnibox/omnibox_controller.h"
+#include "chrome/browser/ui/webui/new_tab_page/composebox/composebox_omnibox_client.h"
+#include "content/public/browser/page_navigator.h"
+
+using composebox::SessionState;
+
+ComposeboxHandler::ComposeboxHandler(
+    mojo::PendingReceiver<composebox::mojom::PageHandler> pending_handler,
+    mojo::PendingRemote<composebox::mojom::Page> pending_page,
+    mojo::PendingReceiver<searchbox::mojom::PageHandler>
+        pending_searchbox_handler,
+    std::unique_ptr<ComposeboxQueryController> query_controller,
+    std::unique_ptr<ComposeboxMetricsRecorder> composebox_metrics_recorder,
+    Profile* profile,
+    content::WebContents* web_contents,
+    MetricsReporter* metrics_reporter)
+    : ContextualSearchboxHandler(
+          std::move(pending_searchbox_handler),
+          profile,
+          web_contents,
+          metrics_reporter,
+          std::move(composebox_metrics_recorder),
+          std::make_unique<OmniboxController>(
+              /*view=*/nullptr,
+              std::make_unique<composebox::ComposeboxOmniboxClient>(
+                  profile,
+                  web_contents,
+                  this,
+                  query_controller.get())),
+          std::move(query_controller)),
+      web_contents_(web_contents),
+      page_{std::move(pending_page)},
+      handler_(this, std::move(pending_handler)) {
+  autocomplete_controller_observation_.Observe(autocomplete_controller());
+}
+
+ComposeboxHandler::~ComposeboxHandler() {
+  autocomplete_controller_observation_.Reset();
+  // Even though these are owned by `SearchboxHandler` whose destructor would
+  // have destroyed these anyways, they have to be deconstructed here because
+  // they have a pointer to `query_controller_`.
+  controller_ = nullptr;
+  owned_controller_.reset();
+}
+
+void ComposeboxHandler::SubmitQuery(
+    const std::string& query_text,
+    WindowOpenDisposition disposition,
+    std::map<std::string, std::string> additional_params) {
+  // Update the query controller state to reflect any deleted contexts.
+  std::erase_if(deleted_context_tokens_,
+                [this](const base::UnguessableToken& context_token) {
+                  ComposeboxQueryController::FileInfo* file_info =
+                      query_controller_->GetFileInfo(context_token);
+
+                  if (file_info == nullptr) {
+                    return false;
+                  }
+
+                  lens::MimeType file_type = file_info
+                                                 ? file_info->mime_type_
+                                                 : lens::MimeType::kUnknown;
+                  FileUploadStatus file_status =
+                      file_info ? file_info->GetFileUploadStatus()
+                                : FileUploadStatus::kNotUploaded;
+
+                  bool success = query_controller_->DeleteFile(context_token);
+                  composebox_metrics_recorder_->RecordFileDeletedMetrics(
+                      success, file_type, file_status);
+
+                  return success;
+                });
+
+  if (deep_search_mode_enabled_) {
+    additional_params["dr"] = "1";
+  }
+
+  // This is the time that the user clicked the submit button, however optional
+  // autocomplete logic may be run before this if there was a match associated
+  // with the query.
+  base::Time query_start_time = base::Time::Now();
+  composebox_metrics_recorder_->NotifySessionStateChanged(
+      SessionState::kQuerySubmitted);
+  OpenUrl(query_controller_->CreateAimUrl(query_text, query_start_time,
+                                          additional_params),
+          disposition);
+  composebox_metrics_recorder_->NotifySessionStateChanged(
+      SessionState::kNavigationOccurred);
+  composebox_metrics_recorder_->RecordQueryMetrics(
+      query_text.size(), query_controller_->num_files_in_request());
+}
+
+void ComposeboxHandler::SetDeepSearchMode(bool enabled) {
+  deep_search_mode_enabled_ = enabled;
+}
+
+void ComposeboxHandler::SubmitQuery(const std::string& query_text,
+                                    uint8_t mouse_button,
+                                    bool alt_key,
+                                    bool ctrl_key,
+                                    bool meta_key,
+                                    bool shift_key) {
+  const WindowOpenDisposition disposition = ui::DispositionFromClick(
+      /*middle_button=*/mouse_button == 1, alt_key, ctrl_key, meta_key,
+      shift_key);
+  SubmitQuery(query_text, disposition, /*additional_params=*/{});
+}
+
+void ComposeboxHandler::FocusChanged(bool focused) {
+  // Unimplemented. Currently the composebox session is tied to when it is
+  // connected/disconnected from the DOM, so this is not needed.
+}
+
+void ComposeboxHandler::HandleLensButtonClick() {
+  // Ignore, intentionally unimplemented for NTP.
+}
+
+void ComposeboxHandler::OpenUrl(GURL url,
+                                const WindowOpenDisposition disposition) {
+  content::OpenURLParams params(url, content::Referrer(), disposition,
+                                ui::PAGE_TRANSITION_LINK, false);
+  web_contents_->OpenURL(params, base::DoNothing());
+}
+
+void ComposeboxHandler::ExecuteAction(uint8_t line,
+                                      uint8_t action_index,
+                                      const GURL& url,
+                                      base::TimeTicks match_selection_timestamp,
+                                      uint8_t mouse_button,
+                                      bool alt_key,
+                                      bool ctrl_key,
+                                      bool meta_key,
+                                      bool shift_key) {
+  NOTREACHED();
+}
+
+void ComposeboxHandler::OnThumbnailRemoved() {
+  NOTREACHED();
+}

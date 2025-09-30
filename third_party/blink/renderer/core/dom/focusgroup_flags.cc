@@ -1,0 +1,380 @@
+// Copyright 2022 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+#include "third_party/blink/renderer/core/dom/focusgroup_flags.h"
+
+#include <ostream>
+
+#include "third_party/blink/public/mojom/use_counter/metrics/web_feature.mojom-blink.h"
+#include "third_party/blink/renderer/core/dom/document.h"
+#include "third_party/blink/renderer/core/dom/element.h"
+#include "third_party/blink/renderer/core/dom/flat_tree_traversal.h"
+#include "third_party/blink/renderer/core/dom/space_split_string.h"
+#include "third_party/blink/renderer/core/execution_context/execution_context.h"
+#include "third_party/blink/renderer/core/inspector/console_message.h"
+#include "third_party/blink/renderer/platform/instrumentation/use_counter.h"
+#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+#include "third_party/blink/renderer/platform/wtf/text/strcat.h"
+#include "third_party/blink/renderer/platform/wtf/text/string_builder.h"
+#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+
+namespace blink::focusgroup {
+
+FocusgroupFlags FindNearestFocusgroupAncestorFlags(const Element* element) {
+  Element* ancestor = FlatTreeTraversal::ParentElement(*element);
+  while (ancestor) {
+    FocusgroupFlags ancestor_flags = ancestor->GetFocusgroupFlags();
+    // When this is true, we found the focusgroup to extend.
+    if (ancestor_flags != FocusgroupFlags::kNone) {
+      return ancestor_flags;
+    }
+    ancestor = FlatTreeTraversal::ParentElement(*ancestor);
+  }
+  return FocusgroupFlags::kNone;
+}
+
+FocusgroupFlags ParseFocusgroup(const Element* element,
+                                const AtomicString& input) {
+  DCHECK(element);
+  ExecutionContext* context = element->GetExecutionContext();
+  DCHECK(RuntimeEnabledFeatures::FocusgroupEnabled(context));
+
+  UseCounter::Count(context, WebFeature::kFocusgroup);
+
+  // 1. Parse the input.
+  bool has_inline = false;
+  bool has_block = false;
+  bool has_grid = false;
+  bool has_wrap = false;
+  bool has_row_wrap = false;
+  bool has_col_wrap = false;
+  bool has_flow = false;
+  bool has_row_flow = false;
+  bool has_col_flow = false;
+  bool has_opt_out = false;
+  bool has_no_memory = false;
+  StringBuilder invalid_tokens;
+
+  SpaceSplitString tokens(input);
+  for (unsigned i = 0; i < tokens.size(); i++) {
+    AtomicString lowercase_token = tokens[i].LowerASCII();
+    if (lowercase_token == "inline") {
+      has_inline = true;
+    } else if (lowercase_token == "block") {
+      has_block = true;
+    } else if (lowercase_token == "grid" &&
+               RuntimeEnabledFeatures::FocusgroupGridEnabled(
+                   element->GetExecutionContext())) {
+      has_grid = true;
+    } else if (lowercase_token == "wrap") {
+      has_wrap = true;
+    } else if (lowercase_token == "row-wrap") {
+      has_row_wrap = true;
+    } else if (lowercase_token == "col-wrap") {
+      has_col_wrap = true;
+    } else if (lowercase_token == "flow") {
+      has_flow = true;
+    } else if (lowercase_token == "row-flow") {
+      has_row_flow = true;
+    } else if (lowercase_token == "col-flow") {
+      has_col_flow = true;
+    } else if (lowercase_token == "none") {
+      has_opt_out = true;
+    } else if (lowercase_token == "no-memory") {
+      has_no_memory = true;
+    } else {
+      if (!invalid_tokens.empty())
+        invalid_tokens.Append(", ");
+
+      // We don't use |lowercase_token| here since that string value will be
+      // logged in the console and we want it to match the input.
+      invalid_tokens.Append(tokens[i]);
+    }
+  }
+
+  if (!invalid_tokens.empty()) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            StrCat({"Unrecognized focusgroup attribute values: ",
+                    invalid_tokens.ReleaseString()})));
+  }
+
+  FocusgroupFlags flags = FocusgroupFlags::kNone;
+
+  // Opt-out short-circuits all other semantics. If combined with any other
+  // recognized token emit a console message and ignore the others.
+  if (has_opt_out) {
+    if (has_inline || has_block || has_grid || has_wrap || has_row_wrap ||
+        has_col_wrap || has_flow || has_row_flow || has_col_flow ||
+        has_no_memory) {
+      element->GetDocument().AddConsoleMessage(
+          MakeGarbageCollected<ConsoleMessage>(
+              mojom::blink::ConsoleMessageSource::kOther,
+              mojom::blink::ConsoleMessageLevel::kError,
+              "Focusgroup attribute value 'none' cannot be combined with other"
+              " focusgroup attribute values; all others ignored."));
+    }
+    flags = FocusgroupFlags::kOptOut;
+    return flags;
+  }
+
+  // 2. Apply the grid focusgroup logic:
+  //     * 'grid' can only be set on an HTML table element.
+  //     * The grid-related wrap/flown can only be set on a grid focusgroup.
+  if (has_grid) {
+    flags |= FocusgroupFlags::kGrid;
+
+    // Set the wrap/flow flags, if specified.
+    if (has_wrap) {
+      flags |= FocusgroupFlags::kWrapInline | FocusgroupFlags::kWrapBlock;
+      if (has_row_wrap) {
+        element->GetDocument().AddConsoleMessage(
+            MakeGarbageCollected<ConsoleMessage>(
+                mojom::blink::ConsoleMessageSource::kOther,
+                mojom::blink::ConsoleMessageLevel::kWarning,
+                "Focusgroup attribute value 'row-wrap' present, but can be "
+                "omitted because focusgroup already wraps in both axes."));
+      }
+      if (has_col_wrap) {
+        element->GetDocument().AddConsoleMessage(
+            MakeGarbageCollected<ConsoleMessage>(
+                mojom::blink::ConsoleMessageSource::kOther,
+                mojom::blink::ConsoleMessageLevel::kWarning,
+                "Focusgroup attribute value 'col-wrap' present, but can be "
+                "omitted because focusgroup already wraps in both axes."));
+      }
+    } else {
+      if (has_row_wrap)
+        flags |= FocusgroupFlags::kWrapInline;
+      if (has_col_wrap)
+        flags |= FocusgroupFlags::kWrapBlock;
+
+      if (has_row_wrap && has_col_wrap) {
+        element->GetDocument().AddConsoleMessage(
+            MakeGarbageCollected<ConsoleMessage>(
+                mojom::blink::ConsoleMessageSource::kOther,
+                mojom::blink::ConsoleMessageLevel::kWarning,
+                "Focusgroup attribute values 'row-wrap col-wrap' should be "
+                "replaced by 'wrap'."));
+      }
+    }
+
+    if (has_flow) {
+      if (flags & FocusgroupFlags::kWrapInline ||
+          flags & FocusgroupFlags::kWrapBlock) {
+        element->GetDocument().AddConsoleMessage(MakeGarbageCollected<
+                                                 ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'flow' present, but focusgroup already "
+            "set to wrap in at least one axis."));
+      } else {
+        flags |= FocusgroupFlags::kRowFlow | FocusgroupFlags::kColFlow;
+        if (has_row_flow) {
+          element->GetDocument().AddConsoleMessage(
+              MakeGarbageCollected<ConsoleMessage>(
+                  mojom::blink::ConsoleMessageSource::kOther,
+                  mojom::blink::ConsoleMessageLevel::kWarning,
+                  "Focusgroup attribute value 'row-flow' present, but can be "
+                  "omitted because focusgroup already flows in both axes."));
+        }
+        if (has_col_flow) {
+          element->GetDocument().AddConsoleMessage(
+              MakeGarbageCollected<ConsoleMessage>(
+                  mojom::blink::ConsoleMessageSource::kOther,
+                  mojom::blink::ConsoleMessageLevel::kWarning,
+                  "Focusgroup attribute value 'col-flow' present, but can be "
+                  "omitted because focusgroup already flows in both axes."));
+        }
+      }
+    } else {
+      if (has_row_flow) {
+        if (flags & FocusgroupFlags::kWrapInline) {
+          element->GetDocument().AddConsoleMessage(
+              MakeGarbageCollected<ConsoleMessage>(
+                  mojom::blink::ConsoleMessageSource::kOther,
+                  mojom::blink::ConsoleMessageLevel::kError,
+                  "Focusgroup attribute value 'row-flow' present, but "
+                  "focusgroup already wraps in the row axis."));
+        } else {
+          flags |= FocusgroupFlags::kRowFlow;
+        }
+      }
+      if (has_col_flow) {
+        if (flags & FocusgroupFlags::kWrapBlock) {
+          element->GetDocument().AddConsoleMessage(
+              MakeGarbageCollected<ConsoleMessage>(
+                  mojom::blink::ConsoleMessageSource::kOther,
+                  mojom::blink::ConsoleMessageLevel::kError,
+                  "Focusgroup attribute value 'col-flow' present, but "
+                  "focusgroup already wraps in the column axis."));
+        } else {
+          flags |= FocusgroupFlags::kColFlow;
+        }
+      }
+      if (flags & FocusgroupFlags::kRowFlow &&
+          flags & FocusgroupFlags::kColFlow) {
+        element->GetDocument().AddConsoleMessage(
+            MakeGarbageCollected<ConsoleMessage>(
+                mojom::blink::ConsoleMessageSource::kOther,
+                mojom::blink::ConsoleMessageLevel::kWarning,
+                "Focusgroup attribute values 'row-flow col-flow' should be "
+                "replaced by 'flow'."));
+      }
+    }
+
+    // These values are reserved for linear focusgroups.
+    if (has_inline) {
+      element->GetDocument().AddConsoleMessage(
+          MakeGarbageCollected<ConsoleMessage>(
+              mojom::blink::ConsoleMessageSource::kOther,
+              mojom::blink::ConsoleMessageLevel::kError,
+              "Focusgroup attribute value 'inline' present, but has no effect "
+              "on grid focusgroups."));
+    }
+    if (has_block) {
+      element->GetDocument().AddConsoleMessage(
+          MakeGarbageCollected<ConsoleMessage>(
+              mojom::blink::ConsoleMessageSource::kOther,
+              mojom::blink::ConsoleMessageLevel::kError,
+              "Focusgroup attribute value 'block' present, but has no effect "
+              "on grid focusgroups."));
+    }
+
+    if (has_no_memory) {
+      flags |= FocusgroupFlags::kNoMemory;
+    }
+    return flags;
+  }
+
+  // At this point, we are necessarily in a linear focusgroup. Any grid
+  // focusgroup should have returned above.
+
+  if (has_row_wrap) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'row-wrap' present, but has no effect "
+            "on linear focusgroups."));
+  }
+  if (has_col_wrap) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'col-wrap' present, but has no effect "
+            "on linear focusgroups."));
+  }
+  if (has_flow) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'flow' present, but has no effect on "
+            "linear focusgroups."));
+  }
+  if (has_row_flow) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'row-flow' present, but has no effect "
+            "on linear focusgroups."));
+  }
+  if (has_col_flow) {
+    element->GetDocument().AddConsoleMessage(
+        MakeGarbageCollected<ConsoleMessage>(
+            mojom::blink::ConsoleMessageSource::kOther,
+            mojom::blink::ConsoleMessageLevel::kError,
+            "Focusgroup attribute value 'col-flow' present, but has no effect "
+            "on linear focusgroups."));
+  }
+
+  // 4. Set the axis supported on that focusgroup.
+  if (has_inline) {
+    flags |= FocusgroupFlags::kInline;
+  }
+  if (has_block) {
+    flags |= FocusgroupFlags::kBlock;
+  }
+
+  // When no axis is specified, it means that the focusgroup should handle
+  // both.
+  if (!has_inline && !has_block) {
+    flags |= FocusgroupFlags::kInline | FocusgroupFlags::kBlock;
+  }
+
+  if (has_inline && has_block) {
+    element->GetDocument().AddConsoleMessage(MakeGarbageCollected<
+                                             ConsoleMessage>(
+        mojom::blink::ConsoleMessageSource::kOther,
+        mojom::blink::ConsoleMessageLevel::kWarning,
+        "'inline' and 'block' focusgroup attribute values used together "
+        "are redundant (this is the default behavior) and can be omitted."));
+  }
+
+  // 6. Determine in what axis a focusgroup should wrap. This needs to be
+  // performed once the supported axes are final.
+  if (has_wrap) {
+    if (flags & FocusgroupFlags::kInline) {
+      flags |= FocusgroupFlags::kWrapInline;
+    }
+    if (flags & FocusgroupFlags::kBlock) {
+      flags |= FocusgroupFlags::kWrapBlock;
+    }
+  }
+
+  if (has_no_memory) {
+    flags |= FocusgroupFlags::kNoMemory;
+  }
+  return flags;
+}
+
+String FocusgroupFlagsToStringForTesting(FocusgroupFlags flags) {
+  if (flags == FocusgroupFlags::kNone) {
+    return String("FocusgroupFlags(None)");
+  }
+  Vector<const char*> names;
+  names.ReserveInitialCapacity(8);
+  auto append_flag_name_if_set = [&](FocusgroupFlags flag, const char* name) {
+    if (flags & flag) {
+      names.push_back(name);
+    }
+  };
+  append_flag_name_if_set(FocusgroupFlags::kExtend, "Extend");
+  append_flag_name_if_set(FocusgroupFlags::kInline, "Inline");
+  append_flag_name_if_set(FocusgroupFlags::kBlock, "Block");
+  append_flag_name_if_set(FocusgroupFlags::kGrid, "Grid");
+  append_flag_name_if_set(FocusgroupFlags::kWrapInline, "WrapInline");
+  append_flag_name_if_set(FocusgroupFlags::kWrapBlock, "WrapBlock");
+  append_flag_name_if_set(FocusgroupFlags::kRowFlow, "RowFlow");
+  append_flag_name_if_set(FocusgroupFlags::kColFlow, "ColFlow");
+  append_flag_name_if_set(FocusgroupFlags::kOptOut, "OptOut");
+  append_flag_name_if_set(FocusgroupFlags::kNoMemory, "NoMemory");
+  StringBuilder builder;
+  builder.Append("FocusgroupFlags(");
+  for (wtf_size_t i = 0; i < names.size(); ++i) {
+    if (i) {
+      builder.Append('|');
+    }
+    builder.Append(names[i]);
+  }
+  builder.Append(')');
+  return builder.ToString();
+}
+
+bool IsActualFocusgroup(FocusgroupFlags flags) {
+  // OptOut is a mutually exclusive state used to explicitly disable focusgroup
+  // behavior for a subtree. The parser guarantees that if kOptOut is set no
+  // other semantic flags are present. This DCHECK defends against accidental
+  // combinations.
+  DCHECK(!(flags & FocusgroupFlags::kOptOut) ||
+         (flags == FocusgroupFlags::kOptOut));
+  return flags != FocusgroupFlags::kNone && !(flags & FocusgroupFlags::kOptOut);
+}
+
+}  // namespace blink::focusgroup
