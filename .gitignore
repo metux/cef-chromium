@@ -347,3 +347,6 @@ third_party/rust/target/
 
 # Trace files created when using --trace-startup.
 **/chrometrace.log
+
+# CEF sub-repository
+/cef
