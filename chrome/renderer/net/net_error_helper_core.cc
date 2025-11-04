@@ -153,17 +153,12 @@ void NetErrorHelperCore::PrepareErrorPage(
     content::mojom::AlternativeErrorPageOverrideInfoPtr
         alternative_error_page_info,
     std::string* error_html) {
+  if (error_html == nullptr)
+    return;
   if (frame_type == MAIN_FRAME) {
-    pending_error_page_info_ =
-        std::make_unique<ErrorPageInfo>(error, is_failed_post);
-    PrepareErrorPageForMainFrame(pending_error_page_info_.get(),
-                                 std::move(alternative_error_page_info),
-                                 error_html);
+    *error_html = std::string("<H3>network error (MAIN_FRAME)<H3>");
   } else if (error_html) {
-    delegate_->GenerateLocalizedErrorPage(
-        error, is_failed_post,
-        false /* No diagnostics dialogs allowed for subframes. */,
-        std::move(alternative_error_page_info), error_html);
+    *error_html = std::string("<H3>network error (other frame)</H3>");
   }
 }
 
