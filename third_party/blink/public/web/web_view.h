@@ -485,6 +485,11 @@ class BLINK_EXPORT WebView {
   // for testing.
   virtual std::optional<NoiseToken> CanvasNoiseTokenForTesting() = 0;
 
+  // Sets whether to allow the use of JavaScript moveTo/By() and resizeTo/By()
+  // (without user activation) with Document picture-in-picture popups.
+  virtual void SetMovePictureInPictureEnabled(bool enabled) = 0;
+  virtual bool MovePictureInPictureEnabled() const = 0;
+
  protected:
   ~WebView() = default;
 };

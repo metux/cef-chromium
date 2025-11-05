@@ -328,6 +328,13 @@ class CORE_EXPORT WebViewImpl final : public WebView,
 
   std::optional<NoiseToken> CanvasNoiseTokenForTesting() override;
 
+  void SetMovePictureInPictureEnabled(bool enabled) override {
+    move_pip_enabled_ = enabled;
+  }
+  bool MovePictureInPictureEnabled() const override {
+    return move_pip_enabled_;
+  }
+
   void DispatchPersistedPageshow(base::TimeTicks navigation_start);
   void DispatchPagehide(mojom::blink::PagehideDispatch pagehide_dispatch);
   void HookBackForwardCacheEviction(bool hook);
@@ -1019,6 +1026,8 @@ class CORE_EXPORT WebViewImpl final : public WebView,
   // Indicates whether the page supports draggable regions via the app-region
   // CSS property.
   bool supports_draggable_regions_ = false;
+
+  bool move_pip_enabled_ = false;
 
   // All the registered observers.
   base::ObserverList<WebViewObserver> observers_;
