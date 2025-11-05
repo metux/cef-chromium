@@ -842,11 +842,10 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
   }
 
   // tabs_internal::GetTabById may return a null window for prerender tabs.
-  if (!window || !window->SupportsTabs()) {
-    return RespondNow(Error(ExtensionTabUtil::kNoCurrentWindowError));
+  TabStripModel* tab_strip = nullptr;
+  if (window && window->SupportsTabs()) {
+    tab_strip = window->GetBrowser()->tab_strip_model();
   }
-  Browser* browser = window->GetBrowser();
-  TabStripModel* tab_strip = browser->tab_strip_model();
 
   web_contents_ = contents;
 
@@ -869,13 +868,13 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
       return RespondNow(Error(ExtensionTabUtil::kTabStripNotEditableError));
     }
 
-    if (tab_strip->active_index() != tab_index) {
+    if (tab_strip && tab_strip->active_index() != tab_index) {
       tab_strip->ActivateTabAt(tab_index);
       DCHECK_EQ(contents, tab_strip->GetActiveWebContents());
     }
   }
 
-  if (params->update_properties.highlighted) {
+  if (tab_strip && params->update_properties.highlighted) {
     // Bug fix for crbug.com/1197888. Don't let the extension update the tab
     // if the user is dragging tabs.
     if (!ExtensionTabUtil::IsTabStripEditable()) {
@@ -896,7 +895,7 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
         kCannotUpdateMuteCaptured, base::NumberToString(tab_id))));
   }
 
-  if (params->update_properties.opener_tab_id) {
+  if (tab_strip && params->update_properties.opener_tab_id) {
     int opener_id = *params->update_properties.opener_tab_id;
     WebContents* opener_contents = nullptr;
     if (opener_id == tab_id) {
@@ -931,7 +930,7 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
         ->SetAutoDiscardable(state);
   }
 
-  if (params->update_properties.pinned) {
+  if (tab_strip && params->update_properties.pinned) {
     // Bug fix for crbug.com/1197888. Don't let the extension update the tab if
     // the user is dragging tabs.
     if (!ExtensionTabUtil::IsTabStripEditable()) {
@@ -952,7 +951,8 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
   // Navigate the tab to a new location if the url is different.
   if (params->update_properties.url) {
     std::string updated_url = *params->update_properties.url;
-    if (browser->profile()->IsIncognitoProfile() &&
+    auto* profile = Profile::FromBrowserContext(browser_context());
+    if (profile->IsIncognitoProfile() &&
         !IsURLAllowedInIncognito(GURL(updated_url))) {
       return RespondNow(Error(ErrorUtils::FormatErrorMessage(
           tabs_constants::kURLsNotAllowedInIncognitoError, updated_url)));
@@ -970,7 +970,7 @@ ExtensionFunction::ResponseAction TabsUpdateFunction::Run() {
 
 #if BUILDFLAG(FULL_SAFE_BROWSING)
     tabs_internal::NotifyExtensionTelemetry(
-        Profile::FromBrowserContext(browser_context()), extension(),
+        profile, extension(),
         safe_browsing::TabsApiInfo::UPDATE, current_url, updated_url,
         js_callstack());
 #endif

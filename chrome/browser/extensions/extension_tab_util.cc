@@ -67,6 +67,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/types/expected_macros.h"
+#include "cef/libcef/features/features.h"
 #include "chrome/browser/browser_process.h"  // nogncheck
 #include "chrome/browser/extensions/tab_helper.h"
 #include "chrome/browser/platform_util.h"  // nogncheck
@@ -101,6 +102,10 @@
 #endif
 
 static_assert(BUILDFLAG(ENABLE_EXTENSIONS_CORE));
+
+#if BUILDFLAG(ENABLE_CEF)
+#include "cef/libcef/browser/chrome/extensions/chrome_extension_util.h"
+#endif
 
 using content::NavigationEntry;
 using content::WebContents;
@@ -929,6 +934,15 @@ bool ExtensionTabUtil::GetTabById(int tab_id,
     }
   }
 #endif  // BUILDFLAG(IS_ANDROID)
+
+#if BUILDFLAG(ENABLE_CEF)
+  if (cef::GetAlloyTabById(tab_id, profile, include_incognito, out_contents)) {
+    // |out_window| and |out_tab_index| are tied to a specific Browser window,
+    // which doesn't exist for an Alloy style browser.
+    return true;
+  }
+#endif
+
   // Prerendering tab is not visible and it cannot be in `TabStripModel`, if the
   // tab id exists as a prerendering tab, and the API will returns
   // `api::tabs::TAB_INDEX_NONE` for `out_tab_index` and a valid `WebContents`.
