@@ -1,3 +1,11 @@
+# CEF branch for Chromium
+
+This is a special branch only meant to be used for Chromium Embedded Framework,
+with extra patches needed to build Chromium for / inside of CEF.
+
+History had been artificially cut at the 142.0.7444.0 tag's latest commit,
+in order to trim history size to a small fraction of the original one.
+
 # GitHub Copilot Integration in Chromium
 
 This directory provides instructions and prompts for integrating GitHub Copilot
