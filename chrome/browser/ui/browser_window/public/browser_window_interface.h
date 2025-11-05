@@ -303,6 +303,10 @@ class BrowserWindowInterface : public content::PageNavigator {
   // browser window (e.g. most of the 3-dot menu actions).
   virtual BrowserActions* GetActions() = 0;
 
+  // Returns true if this is a normal browser as determined by
+  // BrowserWindowFeatures::IsNormalBrowser.
+  virtual bool IsNormalBrowser() const = 0;
+
   virtual web_app::AppBrowserController* GetAppBrowserController() = 0;
   virtual const web_app::AppBrowserController* GetAppBrowserController()
       const = 0;
