@@ -1072,6 +1072,15 @@ SkBitmap* RendererBlinkPlatformImpl::GetSadPageBitmap() {
 
 //------------------------------------------------------------------------------
 
+void RendererBlinkPlatformImpl::DevToolsAgentAttached() {
+  GetContentClient()->renderer()->DevToolsAgentAttached();
+}
+void RendererBlinkPlatformImpl::DevToolsAgentDetached() {
+  GetContentClient()->renderer()->DevToolsAgentDetached();
+}
+
+//------------------------------------------------------------------------------
+
 std::unique_ptr<blink::WebV8ValueConverter>
 RendererBlinkPlatformImpl::CreateWebV8ValueConverter() {
   return std::make_unique<V8ValueConverterImpl>();
