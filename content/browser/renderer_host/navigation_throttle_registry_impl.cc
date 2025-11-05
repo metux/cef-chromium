@@ -252,11 +252,16 @@ NavigationHandle& NavigationThrottleRegistryImpl::GetNavigationHandle() {
 }
 
 void NavigationThrottleRegistryImpl::AddThrottle(
-    std::unique_ptr<NavigationThrottle> navigation_throttle) {
+    std::unique_ptr<NavigationThrottle> navigation_throttle,
+    bool first) {
   CHECK(navigation_throttle);
   TRACE_EVENT1("navigation", "NavigationThrottleRegistryImpl::AddThrottle",
                "navigation_throttle", navigation_throttle->GetNameForLogging());
-  throttles_.push_back(std::move(navigation_throttle));
+  if (first) {
+    throttles_.emplace(throttles_.begin(), std::move(navigation_throttle));
+  } else {
+    throttles_.push_back(std::move(navigation_throttle));
+  }
 }
 
 bool NavigationThrottleRegistryImpl::HasThrottle(const std::string& name) {
