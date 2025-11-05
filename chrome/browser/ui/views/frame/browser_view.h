@@ -140,7 +140,12 @@ class BrowserView : public BrowserWindow,
   // The width of the vertical tab strip.
   static constexpr int kVerticalTabStripWidth = 240;
 
+  // Key used to bind BrowserView to the Widget with which it is associated.
+  static constexpr char kBrowserViewKey[] = "__BROWSER_VIEW__";
+
+  BrowserView();
   explicit BrowserView(Browser* browser);
+  void InitBrowser(Browser* browser);
   BrowserView(const BrowserView&) = delete;
   BrowserView& operator=(const BrowserView&) = delete;
   ~BrowserView() override;
@@ -879,9 +884,15 @@ class BrowserView : public BrowserWindow,
   bool IsTrustedPinned() const;
 #endif
 
- protected:
+  // Called during Toolbar destruction to remove dependent objects that have
+  // dangling references.
+  virtual void WillDestroyToolbar();
+
   // BrowserWindow:
   void DeleteBrowserWindow() final;
+
+ protected:
+  virtual ToolbarView* OverrideCreateToolbar() { return nullptr; }
 
  private:
   // Do not friend BrowserViewLayout. Use the BrowserViewLayoutDelegate
@@ -1123,11 +1134,13 @@ class BrowserView : public BrowserWindow,
   bool ShouldUseBrowserContentMinimumSize() const;
   bool IsBrowserAWebApp() const;
 
+  gfx::Rect GetFindBarBoundingBoxImpl() const;
+
   // The BrowserWidget that owns this view.
   std::unique_ptr<BrowserWidget> browser_widget_;
 
   // The owning Browser object. `browser_` will outlive this.
-  const raw_ptr<Browser> browser_;
+  raw_ptr<Browser> browser_;
 
   base::CallbackListSubscription chip_visibility_subscription_;
 

@@ -123,14 +123,27 @@ ui::ColorProviderKey::SchemeVariant GetSchemeVariant(
 ////////////////////////////////////////////////////////////////////////////////
 // BrowserWidget, public:
 
+BrowserWidget::BrowserWidget() : BrowserWidget(nullptr) {}
+
 BrowserWidget::BrowserWidget(BrowserView* browser_view)
     : browser_native_widget_(nullptr),
       root_view_(nullptr),
       browser_frame_view_(nullptr),
-      browser_view_(browser_view) {
+      browser_view_(nullptr) {
   set_is_secondary_widget(false);
   // Don't focus anything on creation, selecting a tab will set the focus.
   set_focus_on_creation(false);
+  if (browser_view) {
+    SetBrowserView(browser_view);
+  }
+}
+
+void BrowserWidget::SetBrowserFrameView(BrowserFrameView* browser_frame_view) {
+  browser_frame_view_ = browser_frame_view;
+}
+
+void BrowserWidget::SetBrowserView(BrowserView* browser_view) {
+  browser_view_ = browser_view;
 }
 
 BrowserWidget::~BrowserWidget() {
@@ -151,7 +164,9 @@ BrowserWidget::~BrowserWidget() {
   // Do this here and not in ~BrowserView() as BrowserWindowFeatures may attempt
   // to read state on the BrowserWidget as they undergo destruction, and
   // BrowserWidget state is destroyed at the end of this scope.
-  browser_view_->browser()->GetFeatures().TearDownPreBrowserWindowDestruction();
+  if (browser_view_ && browser_view_->browser()) {
+    browser_view_->browser()->GetFeatures().TearDownPreBrowserWindowDestruction();
+  }
 }
 
 void BrowserWidget::InitBrowserWidget() {
@@ -293,6 +308,9 @@ BrowserFrameView* BrowserWidget::GetFrameView() const {
 }
 
 bool BrowserWidget::UseCustomFrame() const {
+  if (!browser_native_widget_) {
+    return false;
+  }
   return browser_native_widget_ && browser_native_widget_->UseCustomFrame();
 }
 
@@ -306,6 +324,8 @@ void BrowserWidget::GetWindowPlacement(
     ui::mojom::WindowShowState* show_state) const {
   if (browser_native_widget_) {
     browser_native_widget_->GetWindowPlacement(bounds, show_state);
+  } else {
+    *show_state = ui::mojom::WindowShowState::kDefault;
   }
 }
 
@@ -416,6 +436,8 @@ ui::ColorProviderKey::ThemeInitializerSupplier* BrowserWidget::GetCustomTheme()
 }
 
 void BrowserWidget::OnNativeWidgetWorkspaceChanged() {
+  if (!browser_view_)
+    return;
   chrome::SaveWindowWorkspace(browser_view_->browser(), GetWorkspace());
   chrome::SaveWindowVisibleOnAllWorkspaces(browser_view_->browser(),
                                            IsVisibleOnAllWorkspaces());
@@ -615,6 +637,13 @@ void BrowserWidget::SelectNativeTheme() {
     return;
   }
 
+  // Always use the NativeTheme for forced color modes.
+  if (ui::NativeTheme::IsForcedDarkMode() ||
+      ui::NativeTheme::IsForcedLightMode()) {
+    SetNativeTheme(native_theme);
+    return;
+  }
+
   // Ignore the system theme for web apps with window-controls-overlay as the
   // display_override so the web contents can blend with the overlay by using
   // the developer-provided theme color for a better experience. Context:
@@ -680,5 +709,8 @@ bool BrowserWidget::RegenerateFrameOnThemeChange(
 }
 
 bool BrowserWidget::IsIncognitoBrowser() const {
+  if (!browser_view_) {
+    return true;
+  }
   return browser_view_->browser()->profile()->IsIncognitoProfile();
 }

@@ -61,6 +61,10 @@
 #include "chrome/browser/ui/fullscreen_util_mac.h"
 #endif
 
+#if BUILDFLAG(ENABLE_CEF)
+#include "cef/libcef/browser/chrome/views/chrome_views_util.h"
+#endif
+
 using views::View;
 using web_modal::ModalDialogHostObserver;
 using web_modal::WebContentsModalDialogHost;
@@ -123,6 +127,8 @@ class BrowserViewLayout::BrowserModalDialogHostViews
     observer_list_.Notify(&ModalDialogHostObserver::OnHostDestroying);
   }
 
+  bool HasObservers() const { return !observer_list_.empty(); }
+
   void NotifyPositionRequiresUpdate() {
     observer_list_.Notify(&ModalDialogHostObserver::OnPositionRequiresUpdate);
   }
@@ -159,8 +165,7 @@ class BrowserViewLayout::BrowserModalDialogHostViews
     }
     const int middle_x =
         leading_x + layout_result.contents_container_bounds.width() / 2;
-    return gfx::Point(middle_x - dialog_size.width() / 2,
-                      browser_view_layout_->dialog_top_y_);
+    return gfx::Point(middle_x - dialog_size.width() / 2, GetDialogTopY());
   }
 
   bool ShouldActivateDialog() const override {
@@ -186,7 +191,7 @@ class BrowserViewLayout::BrowserModalDialogHostViews
     // universally.
     views::View* view = browser_view_layout_->contents_container_;
     gfx::Rect content_area = view->ConvertRectToWidget(view->GetLocalBounds());
-    const int top = browser_view_layout_->dialog_top_y_;
+    const int top = GetDialogTopY();
     return gfx::Size(content_area.width(), content_area.bottom() - top);
   }
 
@@ -213,6 +218,13 @@ class BrowserViewLayout::BrowserModalDialogHostViews
   gfx::NativeView GetHostView() const override {
     views::Widget* const host_widget = GetHostWidget();
     return host_widget ? host_widget->GetNativeView() : gfx::NativeView();
+  }
+
+  int GetDialogTopY() const {
+    int dialog_top_y = browser_view_layout_->dialog_top_y_;
+    browser_view_layout_->delegate_->UpdateDialogTopInsetInBrowserView(
+        &dialog_top_y);
+    return dialog_top_y;
   }
 
   // Add/remove observer.
@@ -410,18 +422,21 @@ void BrowserViewLayout::Layout(views::View* browser_view) {
     exclusive_access_bubble->RepositionIfVisible();
   }
 
-  // Adjust any hosted dialogs if the browser's dialog hosting bounds changed.
-  const gfx::Rect dialog_bounds(dialog_host_->GetDialogPosition(gfx::Size()),
-                                dialog_host_->GetMaximumDialogSize());
-  const gfx::Rect host_widget_bounds =
-      dialog_host_->GetHostWidget()
-          ? dialog_host_->GetHostWidget()->GetClientAreaBoundsInScreen()
-          : gfx::Rect();
-  const gfx::Rect dialog_bounds_in_screen =
-      dialog_bounds + host_widget_bounds.OffsetFromOrigin();
-  if (latest_dialog_bounds_in_screen_ != dialog_bounds_in_screen) {
-    latest_dialog_bounds_in_screen_ = dialog_bounds_in_screen;
-    dialog_host_->NotifyPositionRequiresUpdate();
+  // Avoid unnecessary calls to UpdateDialogTopInsetInBrowserView().
+  if (dialog_host_->HasObservers()) {
+    // Adjust any hosted dialogs if the browser's dialog hosting bounds changed.
+    const gfx::Rect dialog_bounds(dialog_host_->GetDialogPosition(gfx::Size()),
+                                  dialog_host_->GetMaximumDialogSize());
+    const gfx::Rect host_widget_bounds =
+        dialog_host_->GetHostWidget()
+            ? dialog_host_->GetHostWidget()->GetClientAreaBoundsInScreen()
+            : gfx::Rect();
+    const gfx::Rect dialog_bounds_in_screen =
+        dialog_bounds + host_widget_bounds.OffsetFromOrigin();
+    if (latest_dialog_bounds_in_screen_ != dialog_bounds_in_screen) {
+      latest_dialog_bounds_in_screen_ = dialog_bounds_in_screen;
+      dialog_host_->NotifyPositionRequiresUpdate();
+    }
   }
 }
 
@@ -577,6 +592,15 @@ void BrowserViewLayout::LayoutWebUITabStrip(gfx::Rect& available_bounds) {
 
 void BrowserViewLayout::LayoutToolbar(gfx::Rect& available_bounds) {
   TRACE_EVENT0("ui", "BrowserViewLayout::LayoutToolbar");
+
+#if BUILDFLAG(ENABLE_CEF)
+  if (cef::IsCefView(toolbar_)) {
+    // CEF may take ownership of the toolbar. Early exit to avoid the DCHECK
+    // in LayoutManager::SetViewVisibility().
+    return;
+  }
+#endif
+
   bool toolbar_visible = delegate_->IsToolbarVisible();
   SetViewVisibility(toolbar_, toolbar_visible);
 

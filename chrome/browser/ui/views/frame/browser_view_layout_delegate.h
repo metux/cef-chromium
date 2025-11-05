@@ -27,6 +27,7 @@ class BrowserViewLayoutDelegate {
   virtual gfx::Rect GetBoundsForToolbarInVerticalTabBrowserView() const = 0;
   virtual gfx::Rect GetBoundsForWebAppFrameToolbarInBrowserView() const = 0;
   virtual int GetTopInsetInBrowserView() const = 0;
+  virtual void UpdateDialogTopInsetInBrowserView(int* dialog_top_y) const = 0;
   virtual bool IsToolbarVisible() const = 0;
   virtual bool IsBookmarkBarVisible() const = 0;
   virtual bool IsContentsSeparatorEnabled() const = 0;

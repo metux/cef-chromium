@@ -229,12 +229,14 @@ END_METADATA
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ToolbarView, kToolbarElementId);
 DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(ToolbarView, kToolbarContainerElementId);
 
-ToolbarView::ToolbarView(Browser* browser, BrowserView* browser_view)
+ToolbarView::ToolbarView(Browser* browser,
+                         BrowserView* browser_view,
+                         std::optional<DisplayMode> display_mode)
     : AnimationDelegateViews(this),
       browser_(browser),
       browser_view_(browser_view),
       app_menu_icon_controller_(browser->profile(), this),
-      display_mode_(GetDisplayMode(browser)) {
+      display_mode_(display_mode ? *display_mode : GetDisplayMode(browser)) {
   SetID(VIEW_ID_TOOLBAR);
   SetProperty(views::kElementIdentifierKey, kToolbarElementId);
 
@@ -269,9 +271,24 @@ ToolbarView::~ToolbarView() {
   if (browser_view_->GetSupportsTabStrip()) {
     browser()->GetTabStripModel()->RemoveObserver(this);
   }
+
+  browser_view_->WillDestroyToolbar();
 }
 
 void ToolbarView::Init() {
+#if BUILDFLAG(ENABLE_CEF)
+  using ToolbarButtonType = cef::BrowserDelegate::ToolbarButtonType;
+  auto button_visible = [this](ToolbarButtonType type) {
+    if (this->browser_->cef_delegate()) {
+      return this->browser_->cef_delegate()->IsToolbarButtonVisible(type);
+    }
+    return true;
+  };
+#define BUTTON_VISIBLE(type) button_visible(ToolbarButtonType::type)
+#else
+#define BUTTON_VISIBLE(type) true
+#endif
+
 #if defined(USE_AURA)
   // Avoid generating too many occlusion tracking calculation events before this
   // function returns. The occlusion status will be computed only once once this
@@ -294,7 +311,7 @@ void ToolbarView::Init() {
 
   auto location_bar = std::make_unique<LocationBarView>(
       browser_, browser_->profile(), browser_->command_controller(), this,
-      display_mode_ != DisplayMode::NORMAL);
+      display_mode_ != DisplayMode::NORMAL && !browser_->toolbar_overridden());
   // Make sure the toolbar shows by default.
   size_animation_.Reset(1);
 
@@ -367,7 +384,8 @@ void ToolbarView::Init() {
   }
 
   std::unique_ptr<MediaToolbarButtonView> media_button;
-  if (base::FeatureList::IsEnabled(media::kGlobalMediaControls)) {
+  if (base::FeatureList::IsEnabled(media::kGlobalMediaControls) &&
+      BUTTON_VISIBLE(kMedia)) {
     media_button = std::make_unique<MediaToolbarButtonView>(
         browser_view_,
         std::make_unique<MediaToolbarButtonContextualMenu>(browser_));
@@ -408,7 +426,7 @@ void ToolbarView::Init() {
   pinned_toolbar_actions_container_ = container_view_->AddChildView(
       std::make_unique<PinnedToolbarActionsContainer>(browser_view_));
 
-  if (features::HasTabSearchToolbarButton()) {
+  if (features::HasTabSearchToolbarButton() && BUTTON_VISIBLE(kTabSearch)) {
     tab_search_button_ =
         pinned_toolbar_actions_container()->CreatePermanentButtonFor(
             kActionTabSearch);
@@ -437,7 +455,8 @@ void ToolbarView::Init() {
 
   // Only show the Battery Saver button when it is not controlled by the OS. On
   // ChromeOS the battery icon in the shelf shows the same information.
-  if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS()) {
+  if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
+      BUTTON_VISIBLE(kBatterySaver)) {
     battery_saver_button_ = container_view_->AddChildView(
         std::make_unique<BatterySaverButton>(browser_view_));
   }
@@ -466,7 +485,7 @@ void ToolbarView::Init() {
                                browser_->profile()->IsGuestSession() ||
                                browser_->profile()->IsRegularProfile();
 #endif
-  avatar_->SetVisible(show_avatar_toolbar_button);
+  avatar_->SetVisible(show_avatar_toolbar_button && BUTTON_VISIBLE(kAvatar));
 
 #if BUILDFLAG(ENABLE_WEBUI_TAB_STRIP)
   auto new_tab_button = std::make_unique<ToolbarButton>(base::BindRepeating(
@@ -829,7 +848,9 @@ void ToolbarView::Layout(PassKey) {
 
   if (display_mode_ == DisplayMode::NORMAL) {
     LayoutCommon();
-    UpdateClipPath();
+    if (!browser_->toolbar_overridden()) {
+      UpdateClipPath();
+    }
   }
 
   if (toolbar_controller_) {
