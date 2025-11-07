@@ -31,6 +31,7 @@
 #include "chrome/browser/ui/browser_navigator_params.h"
 #include "chrome/browser/ui/browser_navigator_params_utils.h"
 #include "chrome/browser/ui/browser_window.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_features.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/incognito_allowed_url.h"
 #include "chrome/browser/ui/location_bar/location_bar.h"
@@ -253,6 +254,10 @@ std::tuple<BrowserWindowInterface*, int> GetBrowserAndTabForDisposition(
       }
 
       browser_params.pip_options = pip_options;
+
+#if BUILDFLAG(ENABLE_CEF)
+      browser_params.opener = params.browser;
+#endif
 
       const BrowserWindow* const browser_window = params.browser->window();
       const gfx::NativeWindow native_window =
@@ -484,7 +489,17 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
   }
 #endif
 
-  return WebContents::Create(create_params);
+  std::unique_ptr<WebContents> target_contents =
+      WebContents::Create(create_params);
+
+#if BUILDFLAG(ENABLE_CEF)
+  auto cef_delegate = params.browser->cef_delegate();
+  if (cef_delegate) {
+    cef_delegate->OnWebContentsCreated(target_contents.get());
+  }
+#endif
+
+  return target_contents;
 }
 
 }  // namespace
@@ -816,6 +831,11 @@ base::WeakPtr<content::NavigationHandle> Navigate(NavigateParams* params) {
     // navigation happens in a different tab to the link click.
     apps::SetLinkCapturingSourceDisposition(tab_to_insert->GetContents(),
                                             params->disposition);
+
+    // With CEF the BrowserView is created before the TabModel, so we need a
+    // separate initialization of objects that depend on TabModel.
+    params->browser->GetFeatures().InitPostTabModelConstruction(
+        &params->browser->GetBrowserView());
   }
 
   if (params->source_contents == contents_to_navigate_or_insert) {

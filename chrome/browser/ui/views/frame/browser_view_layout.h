@@ -84,6 +84,8 @@ class BrowserViewLayout : public views::LayoutManager {
     bookmark_bar_ = bookmark_bar;
   }
 
+  void reset_toolbar() { toolbar_ = nullptr; }
+
   void SetUseBrowserContentMinimumSize(bool use_browser_content_minimum_size);
 
   web_modal::WebContentsModalDialogHost* GetWebContentsModalDialogHost();
@@ -164,7 +166,7 @@ class BrowserViewLayout : public views::LayoutManager {
   const raw_ptr<views::Label> web_app_window_title_ = nullptr;
   const raw_ptr<TabStripRegionView> tab_strip_region_view_ = nullptr;
   const raw_ptr<views::View> vertical_tab_strip_container_ = nullptr;
-  const raw_ptr<views::View> toolbar_ = nullptr;
+  raw_ptr<views::View> toolbar_ = nullptr;
   const raw_ptr<InfoBarContainerView> infobar_container_ = nullptr;
   const raw_ptr<views::View> main_container_ = nullptr;
   const raw_ptr<views::View> contents_container_ = nullptr;

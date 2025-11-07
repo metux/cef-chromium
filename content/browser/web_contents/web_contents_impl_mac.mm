@@ -6,6 +6,7 @@
 
 #import <Cocoa/Cocoa.h>
 
+#include "base/notimplemented.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/gfx/geometry/size.h"
 
@@ -13,6 +14,11 @@ namespace content {
 
 void WebContentsImpl::Resize(const gfx::Rect& new_bounds) {
   NSView* view = GetNativeView().GetNativeNSView();
+  if (!view) {
+    // Will be nullptr with CEF OSR.
+    NOTIMPLEMENTED();
+    return;
+  }
   NSRect old_wcv_frame = view.frame;
   CGFloat new_x = old_wcv_frame.origin.x;
   CGFloat new_y = old_wcv_frame.origin.y +
@@ -24,6 +30,11 @@ void WebContentsImpl::Resize(const gfx::Rect& new_bounds) {
 
 gfx::Size WebContentsImpl::GetSize() {
   NSView* view = GetNativeView().GetNativeNSView();
+  if (!view) {
+    // Will be nullptr with CEF OSR.
+    NOTIMPLEMENTED();
+    return gfx::Size();
+  }
   NSRect frame = view.frame;
   return gfx::Size(NSWidth(frame), NSHeight(frame));
 }

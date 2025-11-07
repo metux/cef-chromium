@@ -60,6 +60,15 @@ int BrowserViewLayoutDelegateImplBase::GetTopInsetInBrowserView() const {
          browser_view_->y();
 }
 
+void BrowserViewLayoutDelegateImplBase::UpdateDialogTopInsetInBrowserView(
+    int* dialog_top_y) const {
+#if BUILDFLAG(ENABLE_CEF)
+  if (auto cef_delegate = browser_view_->browser()->cef_delegate()) {
+    cef_delegate->UpdateDialogTopInset(dialog_top_y);
+  }
+#endif
+}
+
 bool BrowserViewLayoutDelegateImplBase::IsToolbarVisible() const {
   return browser_view_->IsToolbarVisible();
 }

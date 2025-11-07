@@ -185,6 +185,15 @@ class BrowserWindowFeatures::ExtensionKeybindingRegistryDelegateTabStrip final
 BrowserWindowFeatures::BrowserWindowFeatures() = default;
 BrowserWindowFeatures::~BrowserWindowFeatures() = default;
 
+// static
+bool BrowserWindowFeatures::IsNormalBrowser(const Browser* browser) {
+  // CEF normal browsers have TYPE_POPUP.
+  if (browser->is_type_popup() && browser->cef_delegate()) {
+    return true;
+  }
+  return browser->is_type_normal();
+}
+
 void BrowserWindowFeatures::Init(BrowserWindowInterface* browser) {
   // This is used only for the controllers which will be created on demand
   // later.
@@ -405,10 +414,12 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
 
   Profile* const profile = browser_->GetProfile();
 
+  const bool supports_toolbar = IsNormalBrowser(browser);
+
   // Features that are only enabled for normal browser windows (e.g. a window
   // with an omnibox and a tab strip). By default most features should be
   // instantiated in this block.
-  if (browser->is_type_normal()) {
+  if (supports_toolbar) {
     BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
 
     if (IsChromeLabsEnabled()) {
@@ -473,7 +484,7 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
       // Browser::GetBrowserView, which always returns a non-null BrowserView
       // in production, but this crashes during unittests using
       // BrowserWithTestWindowTest; these should eventually be refactored.
-      if (browser_view) {
+      if (browser_view && browser_view->GetTabSearchBubbleHost()) {
         tab_search_toolbar_button_controller_ =
             std::make_unique<TabSearchToolbarButtonController>(
                 browser_view, browser_view->GetTabSearchBubbleHost());
@@ -538,7 +549,7 @@ void BrowserWindowFeatures::InitPostWindowConstruction(Browser* browser) {
       browser, browser->GetTabStripModel(), profile, browser->GetWindow(),
       browser->GetType(), browser->app_name(), browser->GetSessionID());
 
-  if (browser->is_type_normal() || browser->is_type_app()) {
+  if (supports_toolbar || browser->is_type_app()) {
     toast_service_ = std::make_unique<ToastService>(browser);
   }
 
@@ -635,7 +646,9 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
   immersive_mode_controller_ =
       chrome::CreateImmersiveModeController(browser_view);
 
-  if (browser_view->GetIsNormalType()) {
+  const bool supports_toolbar = IsNormalBrowser(browser_view->browser());
+
+  if (supports_toolbar) {
 #if BUILDFLAG(ENABLE_GLIC)
     glic::GlicKeyedService* glic_service =
         glic::GlicKeyedService::Get(browser_view->GetProfile());
@@ -687,12 +700,6 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
           GetUserDataFactory().CreateInstance<ActorUiWindowController>(
               *browser_, browser_, std::move(container_overlay_view_pairs));
     }
-
-    data_protection_ui_controller_ =
-        GetUserDataFactory()
-            .CreateInstance<
-                enterprise_data_protection::DataProtectionUIController>(
-                *browser_view->browser(), browser_view);
   }
 
 #if !BUILDFLAG(IS_CHROMEOS)
@@ -724,6 +731,20 @@ void BrowserWindowFeatures::InitPostBrowserViewConstruction(
   find_bar_owner_ = std::make_unique<FindBarOwnerViews>(browser_view);
 }
 
+void BrowserWindowFeatures::InitPostTabModelConstruction(
+    BrowserView* browser_view) {
+  const bool supports_toolbar = IsNormalBrowser(browser_view->browser());
+
+  if (supports_toolbar) {
+    if (!data_protection_ui_controller_) {
+        data_protection_ui_controller_ =
+            GetUserDataFactory()
+                .CreateInstance<
+                    enterprise_data_protection::DataProtectionUIController>(
+                    *browser_view->browser(), browser_view);
+    }
+  }
+}
 void BrowserWindowFeatures::TearDownPreBrowserWindowDestruction() {
   accelerator_provider_ = nullptr;
   extension_keybinding_registry_.reset();
