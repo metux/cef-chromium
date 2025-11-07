@@ -1694,7 +1694,27 @@ bool RenderThreadImpl::RendererIsBackgrounded() const {
 
 void RenderThreadImpl::OnRendererBackgrounded() {
   UpdateForegroundCrashKey(/*foreground=*/false);
+/*
+  Need to disable renderer backgrounding, since it crashes
+
+    [12355:9460:1107/162807.436685:FATAL:base/threading/thread_checker.cc:22] DCHECK failed: checker.CalledOnValidThread(&bound_at). 
+    #0 0x7f910c84f922 base::debug::CollectStackTrace()
+    #1 0x7f910c8376c1 base::debug::StackTrace::StackTrace()
+    #2 0x7f910c72c91a logging::LogMessage::Flush()
+    #3 0x7f910c72c7dd logging::LogMessage::~LogMessage()
+    #4 0x7f910c713d21 logging::(anonymous namespace)::DCheckLogMessage::~DCheckLogMessage()
+    #5 0x7f910c713663 logging::CheckError::~CheckError()
+    #6 0x7f910c80e8e2 base::ScopedValidateThreadChecker::ScopedValidateThreadChecker()
+    #7 0x7f910c7302c3 base::SyncMemoryPressureListener::Notify()
+    #8 0x7f910c731ada base::MemoryPressureListenerRegistry::DoNotifyMemoryPressure()
+    #9 0x7f910c7317b8 base::MemoryPressureListenerRegistry::NotifyMemoryPressure()
+    #10 0x7f910aac04db blink::MemoryPurgeManager::PerformMemoryPurge()
+    #11 0x7f9104da0de1 base::OnceCallback<>::Run()
+    #12 0x7f910c816f4e base::OneShotTimer::RunUserTask()
+*/
+#if 0
   main_thread_scheduler_->SetRendererBackgrounded(true);
+#endif
   discardable_memory_allocator_->OnBackgrounded();
   base::allocator::PartitionAllocSupport::Get()->OnBackgrounded();
   blink::OnProcessBackgrounded();
