@@ -1006,12 +1006,14 @@ int WebRequestEventRouter::OnBeforeRequest(
           ClearPendingCallbacks(browser_context, *request);
           DCHECK_EQ(1u, actions.size());
           OnDNRActionMatched(browser_context, *request, action);
+          fprintf(stderr, "WebRequestEventRouter::OnBeforeRequest() ERR_BLOCKED_BY_CLIENT\n");
           return net::ERR_BLOCKED_BY_CLIENT;
         case DNRRequestAction::Type::COLLAPSE:
           ClearPendingCallbacks(browser_context, *request);
           DCHECK_EQ(1u, actions.size());
           OnDNRActionMatched(browser_context, *request, action);
           *should_collapse_initiator = true;
+          fprintf(stderr, "WebRequestEventRouter::OnBeforeRequest() ERR_BLOCKED_BY_CLIENT\n");
           return net::ERR_BLOCKED_BY_CLIENT;
         case DNRRequestAction::Type::ALLOW:
         case DNRRequestAction::Type::ALLOW_ALL_REQUESTS:
@@ -1222,12 +1224,14 @@ int WebRequestEventRouter::OnHeadersReceived(
           ClearPendingCallbacks(browser_context, *request);
           DCHECK_EQ(1u, actions.size());
           OnDNRActionMatched(browser_context, *request, action);
+          fprintf(stderr, "WebRequestEventRouter::OnHeadersReceived() ERR_BLOCKED_BY_CLIENT\n");
           return net::ERR_BLOCKED_BY_CLIENT;
         case DNRRequestAction::Type::COLLAPSE:
           ClearPendingCallbacks(browser_context, *request);
           DCHECK_EQ(1u, actions.size());
           OnDNRActionMatched(browser_context, *request, action);
           *should_collapse_initiator = true;
+          fprintf(stderr, "WebRequestEventRouter::OnHeadersReceived() ERR_BLOCKED_BY_CLIENT\n");
           return net::ERR_BLOCKED_BY_CLIENT;
         case DNRRequestAction::Type::ALLOW:
         case DNRRequestAction::Type::ALLOW_ALL_REQUESTS:
@@ -2530,6 +2534,7 @@ int WebRequestEventRouter::ExecuteDeltas(
   // This triggers onErrorOccurred if canceled is true.
   int rv = net::OK;
   if (canceled_by_extension) {
+    fprintf(stderr, "ExecuteDeltas() ERR_BLOCKED_BY_CLIENT\n");
     rv = net::ERR_BLOCKED_BY_CLIENT;
     TRACE_EVENT2("extensions", "NetworkRequestBlockedByClient", "extension",
                  canceled_by_extension.value(), "id", request->id);

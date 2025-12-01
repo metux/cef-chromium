@@ -200,6 +200,7 @@ SupervisedUserGoogleAuthNavigationThrottle::ShouldProceed() {
   std::string interstitial_html =
       supervised_user::CreateReauthenticationInterstitialForYouTube(
           *navigation_handle());
+  fprintf(stderr, "SupervisedUserGoogleAuthNavigationThrottle::ShouldProceed() ERR_BLOCKED_BY_CLIENT\n");
   return content::NavigationThrottle::ThrottleCheckResult(
       content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
       std::move(interstitial_html));

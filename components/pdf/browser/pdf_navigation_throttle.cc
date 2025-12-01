@@ -63,6 +63,7 @@ PdfNavigationThrottle::WillProcessResponse() {
           navigation_handle()->GetFrameTreeNodeId())) {
     return PROCEED;
   }
+  fprintf(stderr, "PdfNavigationThrottle::WillProcessResponse() ERR_BLOCKED_BY_CLIENT\n");
   return ThrottleCheckResult(CANCEL, net::ERR_BLOCKED_BY_CLIENT);
 }
 

@@ -141,6 +141,7 @@ HttpsUpgradesNavigationThrottle::WillStartRequest() {
         // New dialog UI.
         // Rewrite the response to a blank page. DidFinishNavigation will
         // show the ABH dialog on top of this blank page.
+        fprintf(stderr, "HttpsUpgradesNavigationThrottle::WillStartRequest() ERR_BLOCKED_BY_CLIENT\n");
         return {content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
                 kBlankPageHtml};
       } else {
@@ -157,6 +158,7 @@ HttpsUpgradesNavigationThrottle::WillStartRequest() {
         std::string interstitial_html = blocking_page->GetHTMLContents();
         security_interstitials::SecurityInterstitialTabHelper::
             AssociateBlockingPage(handle, std::move(blocking_page));
+        fprintf(stderr, "HttpsUpgradesNavigationThrottle::WillStartRequest() ERR_BLOCKED_BY_CLIENT\n");
         return content::NavigationThrottle::ThrottleCheckResult(
             content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
             std::move(interstitial_html));
@@ -218,6 +220,7 @@ HttpsUpgradesNavigationThrottle::WillRedirectRequest() {
       // Rewrite the response to a blank page and cancel the navigation.
       // HttpsOnlyModeTabHelper::DidFinishNavigation() will
       // show the ABH dialog on top of this blank page.
+      fprintf(stderr, "HttpsUpgradesNavigationThrottle::WillRedirectRequest ERR_BLOCKED_BY_CLIENT 1\n");
       return {content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
               kBlankPageHtml};
     } else {
@@ -230,6 +233,7 @@ HttpsUpgradesNavigationThrottle::WillRedirectRequest() {
       std::string interstitial_html = blocking_page->GetHTMLContents();
       security_interstitials::SecurityInterstitialTabHelper::
           AssociateBlockingPage(handle, std::move(blocking_page));
+      fprintf(stderr, "HttpsUpgradesNavigationThrottle::WillRedirectRequest ERR_BLOCKED_BY_CLIENT 2\n");
       return content::NavigationThrottle::ThrottleCheckResult(
           content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
           std::move(interstitial_html));

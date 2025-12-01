@@ -631,6 +631,7 @@ class ExtensionURLLoader : public network::mojom::URLLoader {
             render_process_id_, browser_context_->IsOffTheRecord(),
             extension.get(), incognito_enabled, enabled_extensions,
             *process_map, upstream_url_)) {
+      fprintf(stderr, "Start(): ERR_BLOCKED_BY_CLIENT\n");
       CompleteRequestAndDeleteThis(net::ERR_BLOCKED_BY_CLIENT);
       return;
     }
@@ -835,6 +836,7 @@ class ExtensionURLLoader : public network::mojom::URLLoader {
         extension_id = new_extension_id;
         relative_path = base::FilePath::FromUTF8Unsafe(new_relative_path);
       } else {
+        fprintf(stderr, "LoadExtension() ERR_BLOCKED_BY_CLIENT\n");
         CompleteRequestAndDeleteThis(net::ERR_BLOCKED_BY_CLIENT);
         return;
       }

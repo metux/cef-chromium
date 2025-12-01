@@ -452,6 +452,7 @@ ExtensionNavigationThrottle::WillProcessResponse() {
   // NavigationThrottle instead and check the sandbox flags before creating, so
   // that we don't have to remove it soon after creation.
   mime_handler_view_embedder->OnFrameSandboxed();
+  fprintf(stderr, "ExtensionNavigationThrottle::WillProcessResponse() ERR_BLOCKED_BY_CLIENT\n");
   return ThrottleCheckResult(CANCEL, net::ERR_BLOCKED_BY_CLIENT);
 #else
   return PROCEED;

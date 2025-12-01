@@ -149,6 +149,7 @@ InsecureFormNavigationThrottle::GetThrottleResultForMixedForm(
     tab_storage = InsecureFormTabStorage::GetOrCreate(contents);
   }
   tab_storage->SetInterstitialShown(true);
+  fprintf(stderr, "InsecureFormNavigationThrottle::GetThrottleResultForMixedForm() ERR_BLOCKED_BY_CLIENT\n");
   return content::NavigationThrottle::ThrottleCheckResult(
       CANCEL, net::ERR_BLOCKED_BY_CLIENT, std::move(interstitial_html));
 }

@@ -1553,8 +1553,10 @@ class DnsTransactionImpl final : public DnsTransaction {
     DCHECK(dns_server_iterator_);
     // Check for available server before starting as DoH servers might be
     // unavailable.
-    if (!dns_server_iterator_->AttemptAvailable())
+    if (!dns_server_iterator_->AttemptAvailable()) {
+      fprintf(stderr, "StartQuery() ERR_BLOCKED_BY_CLIENT\n");
       return AttemptResult(ERR_BLOCKED_BY_CLIENT, nullptr);
+    }
 
     return MakeAttempt();
   }

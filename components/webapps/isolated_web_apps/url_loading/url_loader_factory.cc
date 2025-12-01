@@ -386,6 +386,7 @@ class IsolatedWebAppURLLoaderFactoryImpl
                                 loader_client.InitWithNewPipeAndPassReceiver());
 
     if (!CanRequestUrl(resource_request.url)) {
+      fprintf(stderr, "CreateLoaderAndStart() ERR_BLOCKED_BY_CLIENT\n");
       network::URLLoaderCompletionStatus status(net::ERR_BLOCKED_BY_CLIENT);
       mojo::Remote<network::mojom::URLLoaderClient>(std::move(loader_client))
           ->OnComplete(status);

@@ -23,6 +23,7 @@ net::Error DefaultNetErrorCode(NavigationThrottle::ThrottleAction action) {
       return net::ERR_ABORTED;
     case NavigationThrottle::BLOCK_REQUEST:
     case NavigationThrottle::BLOCK_REQUEST_AND_COLLAPSE:
+      fprintf(stderr, "DefaultNetErrorCode() ERR_BLOCKED_BY_CLIENT\n");
       return net::ERR_BLOCKED_BY_CLIENT;
     case NavigationThrottle::BLOCK_RESPONSE:
       return net::ERR_BLOCKED_BY_RESPONSE;

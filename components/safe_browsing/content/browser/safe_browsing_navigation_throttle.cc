@@ -78,6 +78,7 @@ SafeBrowsingNavigationThrottle::WillFailRequest() {
     base::UmaHistogramBoolean("SafeBrowsing.NavigationThrottle.IsSameURL",
                               handle->GetURL() == resource.url);
 
+    fprintf(stderr, "SafeBrowsingNavigationThrottle::WillFailRequest() ERR_BLOCKED_BY_CLIENT\n");
     return content::NavigationThrottle::ThrottleCheckResult(
         CANCEL, net::ERR_BLOCKED_BY_CLIENT, error_page_content);
   }

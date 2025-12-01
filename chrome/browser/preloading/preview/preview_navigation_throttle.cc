@@ -86,6 +86,7 @@ content::NavigationThrottle::ThrottleCheckResult Cancel(
     web_contents->GetDelegate()->CancelPreview(std::move(reason));
   }
 
+  fprintf(stderr, "content::NavigationThrottle::ThrottleCheckResult() ERR_BLOCKED_BY_CLIENT\n");
   return content::NavigationThrottle::ThrottleCheckResult(
       content::NavigationThrottle::CANCEL, net::ERR_BLOCKED_BY_CLIENT,
       MakeErrorPage(navigation_handle, error_code));

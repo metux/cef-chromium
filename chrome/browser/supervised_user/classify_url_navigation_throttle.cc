@@ -214,6 +214,7 @@ void ClassifyUrlNavigationThrottle::OnInterstitialResult(
         // the content area, as parent's approval requires authentication.
         // This interstitial is only available on Linux/Mac/Windows as
         // ChromeOS and Android have different re-auth mechanisms.
+        fprintf(stderr, "ClassifyUrlNavigationThrottle::OnInterstitialResult() ERR_BLOCKED_BY_CLIENT\n");
         CancelDeferredNavigation(
             content::NavigationThrottle::ThrottleCheckResult(
                 CANCEL, net::ERR_BLOCKED_BY_CLIENT,
@@ -222,6 +223,7 @@ void ClassifyUrlNavigationThrottle::OnInterstitialResult(
         return;
       }
 #endif
+        fprintf(stderr, "ClassifyUrlNavigationThrottle::OnInterstitialResult() ERR_BLOCKED_BY_CLIENT\n");
       CancelDeferredNavigation(content::NavigationThrottle::ThrottleCheckResult(
           CANCEL, net::ERR_BLOCKED_BY_CLIENT,
           GetInterstitialHTML(result, already_sent_request, is_main_frame)));

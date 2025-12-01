@@ -1243,6 +1243,7 @@ void WebViewGuest::DidFinishNavigation(
       // code, mark it as blocked.
       int error_code = navigation_handle->GetNetErrorCode();
       if (error_code == net::OK) {
+        fprintf(stderr, "WebViewGuest::DidFinishNavigation() ERR_BLOCKED_BY_CLIENT\n");
         error_code = net::ERR_BLOCKED_BY_CLIENT;
       }
       LoadAbort(IsObservedNavigationWithinGuestMainFrame(navigation_handle),
