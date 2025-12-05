@@ -18,11 +18,18 @@ LinuxUiDelegate* LinuxUiDelegate::GetInstance() {
 }
 
 LinuxUiDelegate::LinuxUiDelegate() {
-  DCHECK(!instance_);
-  instance_ = this;
+  if (instance_) {
+    fprintf(stderr, "WARN: LinuxUiDelegate: there's already a LinuxUiDelegate\n");
+  } else {
+    instance_ = this;
+  }
 }
 
 LinuxUiDelegate::~LinuxUiDelegate() {
+  if (instance_ == this)
+    instance_ = nullptr;
+  else
+    fprintf(stderr, "WARN: LinuxUiDelegate: destructing a secondary instance\n");
   DCHECK_EQ(instance_, this);
   instance_ = nullptr;
 }
