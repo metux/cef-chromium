@@ -1216,6 +1216,7 @@ void PrintRenderFrameHelper::DidFinishLoadForPrinting() {
 
 void PrintRenderFrameHelper::ScriptedPrint(bool user_initiated) {
   blink::WebLocalFrame* web_frame = render_frame()->GetWebFrame();
+  fprintf(stderr, "PrintRenderFrameHelper::ScriptedPrint %s\n", user_initiated ? "true" : "false");
   if (!IsScriptInitiatedPrintAllowed(web_frame, user_initiated))
     return;
 
@@ -2510,6 +2511,7 @@ mojom::PrintPagesParamsPtr PrintRenderFrameHelper::GetPrintSettingsFromUser(
   print_pages_params_.reset();
 
   mojom::PrintPagesParamsPtr print_settings;
+  fprintf(stderr, "PrintRenderFrameHelper::GetPrintSettingsFromUser() calling GetPrintManagerHost()->ScriptedPrint()\n");
   GetPrintManagerHost()->ScriptedPrint(std::move(params), &print_settings);
   return print_settings;
   // WARNING: `this` may be gone at this point. Do not do any more work here

@@ -60,6 +60,7 @@ void PrintingContextLinux::AskUserForSettings(int max_pages,
     NOTREACHED();
   }
 
+  fprintf(stderr, "PrintingContextLinux::AskUserForSettings()\n");
   print_dialog_->ShowDialog(delegate_->GetParentView(), has_selection,
                             std::move(callback));
 }

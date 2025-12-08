@@ -784,6 +784,7 @@ void PrintViewManagerBase::IsPrintingEnabled(
 
 void PrintViewManagerBase::ScriptedPrint(mojom::ScriptedPrintParamsPtr params,
                                          ScriptedPrintCallback callback) {
+  fprintf(stderr, "PrintViewManagerBase::ScriptedPrint()\n");
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
   content::RenderFrameHost* render_frame_host = GetCurrentTargetFrame();
@@ -1281,6 +1282,8 @@ void PrintViewManagerBase::CompleteScriptedPrint(
     content::RenderFrameHost* rfh,
     mojom::ScriptedPrintParamsPtr params,
     ScriptedPrintCallback callback) {
+
+  fprintf(stderr, "PrintViewManagerBase::CompleteScriptedPrint()\n");
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   content::RenderProcessHost* render_process_host = rfh->GetProcess();
   auto callback_wrapper = base::BindOnce(
@@ -1292,6 +1295,7 @@ void PrintViewManagerBase::CompleteScriptedPrint(
     printer_query = queue()->CreatePrinterQuery(rfh->GetGlobalId());
 
   auto* printer_query_ptr = printer_query.get();
+  fprintf(stderr, "calling printer_query_ptr->GetSettingsFromUser\n");
   printer_query_ptr->GetSettingsFromUser(
       params->expected_pages_count, params->has_selection, params->margin_type,
       params->is_scripted, !render_process_host->IsPdf(),

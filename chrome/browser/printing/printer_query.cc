@@ -227,6 +227,7 @@ void PrinterQuery::GetSettingsFromUser(uint32_t document_page_count,
   is_print_dialog_box_shown_ = true;
   printing_context_->set_margin_type(margin_type);
   // `this` is owned by `callback`, so `base::Unretained()` is safe.
+  fprintf(stderr, "PrinterQuery::GetSettingsFromUser() calling GetSettingsWithUI\n");
   GetSettingsWithUI(
       document_page_count, has_selection, is_scripted,
       base::BindOnce(&PrinterQuery::PostSettingsDone, base::Unretained(this),
@@ -428,6 +429,7 @@ void PrinterQuery::GetSettingsWithUI(uint32_t document_page_count,
   }
 
   PRINTER_LOG(EVENT) << "Getting printer settings from user in-process";
+  fprintf(stderr, "PrinterQuery::GetSettingsWithUI: calling AskUserForSettings\n");
   printing_context_->AskUserForSettings(
       base::checked_cast<int>(document_page_count), has_selection, is_scripted,
       base::BindOnce(&PrinterQuery::InvokeSettingsCallback,

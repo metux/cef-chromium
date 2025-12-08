@@ -2015,6 +2015,7 @@ blink::WebFrameWidget* RenderFrameImpl::GetLocalRootWebFrameWidget() {
 
 void RenderFrameImpl::ScriptedPrint() {
   bool user_initiated = GetLocalRootWebFrameWidget()->HandlingInputEvent();
+  fprintf(stderr, "RenderFrameImpl::ScriptedPrint() %s\n", user_initiated ? "user" : "non-user");
   for (auto& observer : observers_)
     observer.ScriptedPrint(user_initiated);
 }

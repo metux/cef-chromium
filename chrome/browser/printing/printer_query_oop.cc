@@ -178,6 +178,7 @@ void PrinterQueryOop::GetSettingsWithUI(uint32_t document_page_count,
 
 #if BUILDFLAG(ENABLE_OOP_BASIC_PRINT_DIALOG)
   PRINTER_LOG(EVENT) << "Getting printer settings from user via service";
+  fprintf(stderr, "PrinterQueryOop::GetSettingsWithUI() SendAskUserForSettings()\n");
   SendAskUserForSettings(document_page_count, has_selection, is_scripted,
                          std::move(callback));
 #else
@@ -191,6 +192,7 @@ void PrinterQueryOop::GetSettingsWithUI(uint32_t document_page_count,
   //       browser process.
   //   - Other platforms don't have a system print UI or do not use OOP
   //     printing, so this does not matter.
+  fprintf(stderr, "PrinterQueryOop::GetSettingsWithUI() calling PrinterQuery::GetSettingsWithUI\n");
   PrinterQuery::GetSettingsWithUI(
       document_page_count, has_selection, is_scripted,
       base::BindOnce(&PrinterQueryOop::OnDidAskUserForSettings,

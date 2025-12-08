@@ -411,6 +411,9 @@ void PrintDialogGtk::ShowDialog(
     gfx::NativeView parent_view,
     bool has_selection,
     PrintingContextLinux::PrintSettingsCallback callback) {
+
+  fprintf(stderr, "entering PrintDialogGtk::ShowDialog()\n");
+
   callback_ = std::move(callback);
   DCHECK(callback_);
 
@@ -435,7 +438,7 @@ void PrintDialogGtk::ShowDialog(
 
   // Disable input handling so the user cannot focus the same tab and press
   // print again.
-  reenable_parent_events_ = gtk::DisableHostInputHandling(dialog_, parent_view);
+//  reenable_parent_events_ = gtk::DisableHostInputHandling(dialog_, parent_view);
 
   // Since we only generate PDF, only show printers that support PDF.
   // TODO(thestig) Add more capabilities to support?
@@ -460,6 +463,7 @@ void PrintDialogGtk::ShowDialog(
   gtk_widget_show(dialog_);
 
   gtk::GtkUi::GetPlatform()->ShowGtkWindow(GTK_WINDOW(dialog_.get()));
+  fprintf(stderr, "returning from PrintDialogGtk::ShowDialog()\n");
 }
 
 void PrintDialogGtk::PrintDocument(const printing::MetafilePlayer& metafile,
@@ -505,11 +509,13 @@ void PrintDialogGtk::PrintDocument(const printing::MetafilePlayer& metafile,
 }
 
 void PrintDialogGtk::ReleaseDialog() {
+  fprintf(stderr, "PrintDialogGtk::ReleaseDialog()\n");
   context_ = nullptr;
   Release();
 }
 
 void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
+  fprintf(stderr, "PrintDialogGtk::OnResponse()\n");
   signal_.Reset();
 
   gtk_widget_hide(dialog_);
@@ -519,6 +525,7 @@ void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
 
   switch (response_id) {
     case GTK_RESPONSE_OK: {
+      fprintf(stderr, "GTK_RESPONSE_OK\n");
       if (!context_) {
         std::move(callback_).Run(printing::mojom::ResultCode::kCanceled);
         return;
@@ -576,6 +583,7 @@ void PrintDialogGtk::OnResponse(GtkWidget* dialog, int response_id) {
       settings->set_selection_only(print_selection_only);
       InitPrintSettingsGtk(gtk_settings_, page_setup_, settings.get());
       context_->InitWithSettings(std::move(settings));
+      fprintf(stderr, "starting the callback\n");
       std::move(callback_).Run(printing::mojom::ResultCode::kSuccess);
       return;
     }
@@ -646,6 +654,7 @@ void PrintDialogGtk::InitPrintSettings(
 void PrintDialogGtk::OnWindowDestroying(aura::Window* window) {
   DCHECK_EQ(gtk::GetAuraTransientParent(dialog_), window);
 
+  fprintf(stderr, "PrintDialogGtk::OnWindowDestroying\n");
   gtk::ClearAuraTransientParent(dialog_, window);
   window->RemoveObserver(this);
   if (callback_)
