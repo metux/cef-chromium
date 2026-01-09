@@ -465,7 +465,10 @@ void TabModel::DestroyTabFeatures() {
 // static
 TabInterface* TabInterface::GetFromContents(
     content::WebContents* web_contents) {
-  return TabLookupFromWebContents::FromWebContents(web_contents)->model();
+  TabLookupFromWebContents *contents = TabLookupFromWebContents::FromWebContents(web_contents);
+  if (contents == nullptr)
+    return nullptr;
+  return contents->model();
 }
 
 // static

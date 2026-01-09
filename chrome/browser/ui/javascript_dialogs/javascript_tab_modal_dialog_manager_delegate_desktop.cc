@@ -59,6 +59,9 @@ void JavaScriptTabModalDialogManagerDelegateDesktop::WillRunDialog() {
   // If the tab triggering the dialog is in a split but not active, activate the
   // tab triggering the dialog.
   tabs::TabInterface* tab = tabs::TabInterface::GetFromContents(web_contents_);
+  if (tab == nullptr)
+    return;
+
   BrowserWindowInterface* browser = tab->GetBrowserWindowInterface();
   if (browser && tab->IsSplit() && !tab->IsActivated()) {
     browser->GetTabStripModel()->ActivateTabAt(
