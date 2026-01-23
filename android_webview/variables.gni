@@ -1,0 +1,16 @@
+# Copyright 2018 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//build/config/android/channel.gni")
+import("//build/config/android/config.gni")
+
+declare_args() {
+  # Show a launcher icon to open WebView developer UI. This is enabled by
+  # default for all prestable builds.
+  webview_devui_show_icon = android_channel != "stable"
+}
+
+upstream_only_webview_deps = [ "//android_webview/nonembedded:icon_resources" ]
+
+webview_product_config_java_package = "org.chromium.android_webview"
